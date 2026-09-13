@@ -127,10 +127,41 @@ def _credentials() -> Credentials:
     return Credentials.from_service_account_info(dict(info), scopes=_SCOPES)
 
 
+def _wrap_google_error(e: Exception) -> "StorageError":
+    """Turn a raw Google auth/API failure into an actionable StorageError.
+
+    Without this a bad key surfaces as an unhandled RefreshError and Streamlit
+    replaces the whole page with a stack trace -- which says nothing useful and
+    leaks the app's internals to every visitor.
+    """
+    msg = str(e)
+    if "Invalid JWT Signature" in msg or "invalid_grant" in msg:
+        return StorageError(
+            "The Google service-account key was rejected (invalid JWT signature). "
+            "The `private_key` in secrets does not match its `private_key_id` — "
+            "this happens when only part of the key was replaced during a rotation. "
+            "Re-paste the whole [gcp_service_account] section from the downloaded "
+            "JSON key file."
+        )
+    if "PERMISSION_DENIED" in msg or "403" in msg:
+        return StorageError(
+            "The service account was denied access to the Sheet. Share the Sheet "
+            "with its client_email (Editor), and check the Sheets API is enabled."
+        )
+    if "404" in msg or "not found" in msg.lower():
+        return StorageError("Sheet not found — check `gsheet_id` in secrets.")
+    return StorageError(f"Google Sheets backend error: {msg[:300]}")
+
+
 @st.cache_resource(show_spinner=False)
 def _worksheet():
-    gc = gspread.authorize(_credentials())
-    sh = gc.open_by_key(_secret("storage", "gsheet_id"))
+    try:
+        gc = gspread.authorize(_credentials())
+        sh = gc.open_by_key(_secret("storage", "gsheet_id"))
+    except StorageError:
+        raise
+    except Exception as e:
+        raise _wrap_google_error(e) from e
     try:
         ws = sh.worksheet(WORKSHEET_NAME)
     except gspread.exceptions.WorksheetNotFound:
@@ -257,7 +288,12 @@ def set_submission_status(submission_id: str, status: str) -> int:
 
 def _log_version() -> int:
     """Cheap change-detector for cache invalidation: how many timestamps exist."""
-    return len(_worksheet().col_values(1))
+    try:
+        return len(_worksheet().col_values(1))
+    except StorageError:
+        raise
+    except Exception as e:
+        raise _wrap_google_error(e) from e
 
 
 @st.cache_data(show_spinner=False)
