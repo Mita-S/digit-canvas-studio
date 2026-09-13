@@ -28,3 +28,4 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+SETUP_CLOUD_STORAGE.md
