@@ -22,12 +22,29 @@ import streamlit as st
 # DIGIT_DEV_NO_AUTH=1 substitutes a fake signed-in user so a headless browser
 # can reach the Draw and Admin portals.
 #
-# It is read from the environment only -- never from secrets.toml -- so it
-# cannot be switched on by a deploy config, and it is off unless someone
-# exports it in the shell that starts Streamlit. Never set it on a public
-# deployment: it disables sign-in for everyone.
-DEV_NO_AUTH = os.environ.get("DIGIT_DEV_NO_AUTH") == "1"
+# It must come from a real shell environment variable. Streamlit copies every
+# top-level secret into os.environ, so reading the env alone would let anyone
+# with access to the deploy's secrets box disable sign-in for all visitors --
+# _dev_no_auth() therefore refuses the flag when it also appears in secrets.
+# Never set it on a public deployment: it disables sign-in for everyone.
 DEV_USER_EMAIL = os.environ.get("DIGIT_DEV_EMAIL", "dev@localhost")
+
+
+def _in_secrets(key: str) -> bool:
+    try:
+        return key in st.secrets
+    except Exception:
+        return False
+
+
+def _dev_no_auth() -> bool:
+    """True only when the bypass came from a genuine shell env var."""
+    if os.environ.get("DIGIT_DEV_NO_AUTH") != "1":
+        return False
+    if _in_secrets("DIGIT_DEV_NO_AUTH"):
+        # Came from secrets.toml / the Cloud secrets box, not a shell export.
+        return False
+    return True
 
 
 def _admin_emails() -> Set[str]:
@@ -42,7 +59,7 @@ def _admin_emails() -> Set[str]:
 
 def is_admin() -> bool:
     """True only for a logged-in user whose email is in [admin] emails."""
-    if DEV_NO_AUTH:
+    if _dev_no_auth():
         return True
     if not st.user.is_logged_in:
         return False
@@ -52,7 +69,7 @@ def is_admin() -> bool:
 
 def require_login() -> None:
     """Block the rest of the page behind a Google sign-in screen."""
-    if DEV_NO_AUTH:
+    if _dev_no_auth():
         st.warning(
             "⚠️ **DIGIT_DEV_NO_AUTH=1** — sign-in is bypassed and you are "
             f"`{DEV_USER_EMAIL}`. Local testing only; never set this on a deploy.",
@@ -83,7 +100,7 @@ def require_login() -> None:
 
 def current_email() -> str:
     """The signed-in user's email -- or the stand-in when auth is bypassed."""
-    if DEV_NO_AUTH:
+    if _dev_no_auth():
         return DEV_USER_EMAIL
     return (getattr(st.user, "email", "") or "")
 
@@ -104,7 +121,7 @@ def clear_user_state() -> None:
 def logout() -> None:
     """Log the user out, discarding their in-progress set first."""
     clear_user_state()
-    if DEV_NO_AUTH:
+    if _dev_no_auth():
         # There is no Google session to end when auth is bypassed; the most
         # honest thing is to reset the working state and say so.
         st.session_state["_dev_logout_notice"] = True
@@ -118,13 +135,14 @@ def user_badge() -> None:
         st.markdown("---")
         cols = st.columns([1, 3])
         with cols[0]:
-            picture = None if DEV_NO_AUTH else getattr(st.user, "picture", None)
+            dev = _dev_no_auth()
+            picture = None if dev else getattr(st.user, "picture", None)
             if picture:
                 st.image(picture, width=36)
             else:
-                st.markdown("### 🧪" if DEV_NO_AUTH else "### 👤")
+                st.markdown("### 🧪" if dev else "### 👤")
         with cols[1]:
-            if DEV_NO_AUTH:
+            if _dev_no_auth():
                 st.caption(f"{DEV_USER_EMAIL}")
                 st.caption("auth bypassed")
             else:
@@ -143,7 +161,7 @@ def user_badge() -> None:
             help=(
                 "Clears your in-progress set. Sign-in is bypassed "
                 "(DIGIT_DEV_NO_AUTH=1), so this only resets the session."
-                if DEV_NO_AUTH
+                if _dev_no_auth()
                 else "Ends your Google session for this app and clears your in-progress set."
             ),
         )
