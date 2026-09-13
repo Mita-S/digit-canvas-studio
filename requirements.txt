@@ -1,0 +1,29 @@
+# Core app
+streamlit>=1.42.0
+# 0.13 removed display_toolbar and made image_data opt-in via
+# return_image_data=True -- pages/draw.py targets that API.
+streamlit-drawable-canvas>=0.13.0
+numpy>=1.24
+pillow>=10.0
+scipy>=1.10
+pandas>=2.0
+
+# Google sign-in (st.login / st.user) -- see SETUP_GOOGLE_AUTH.md
+Authlib>=1.3.2
+# Authlib ships its httpx transport as an optional extra, but Streamlit's
+# /oauth2callback route imports it -- without httpx, clicking "Sign in with
+# Google" 500s with ModuleNotFoundError.
+httpx>=0.27
+
+# Live digit prediction -- the trained model is committed at
+# models/mnist_mlp.joblib, so nothing is downloaded or trained at runtime.
+# Retrain with: python recognizer.py --train
+scikit-learn>=1.4
+joblib>=1.3
+
+# Google Sheets + Drive storage backend -- see SETUP_CLOUD_STORAGE.md
+# (only imported if [storage] backend = "cloud" in secrets.toml; the
+# zero-setup local-disk backend needs none of these three)
+gspread>=6.1.0
+google-auth>=2.30.0
+google-api-python-client>=2.130.0

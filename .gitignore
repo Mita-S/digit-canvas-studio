@@ -1,0 +1,30 @@
+# Secrets -- never commit these
+.streamlit/secrets.toml
+
+# Google OAuth client files downloaded from Cloud Console. These contain the
+# client_secret, so match them by pattern rather than by one exact filename.
+client_secret_*.json
+*.apps.googleusercontent.com.json
+OAuth Client.txt
+
+# Service-account keys (cloud storage backend)
+*-service-account*.json
+gcp-*.json
+
+# Internal build notes -- kept locally, not published
+Digital canvas studio notes.md
+
+# Local-disk dataset backend output
+data/
+
+# Dataset exports written by the Admin portal
+exports/
+
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
