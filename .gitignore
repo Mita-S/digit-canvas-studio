@@ -11,6 +11,9 @@ OAuth Client.txt
 *-service-account*.json
 gcp-*.json
 
+# Setup guide kept locally, not published
+SETUP_GOOGLE_AUTH.md
+
 # Internal build notes -- kept locally, not published
 Digital canvas studio notes.md
 
@@ -28,4 +31,3 @@ __pycache__/
 *.pyc
 .venv/
 venv/
-SETUP_CLOUD_STORAGE.md
