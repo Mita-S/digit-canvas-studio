@@ -24,8 +24,20 @@ Requires three things in Streamlit secrets (see SETUP_CLOUD_STORAGE.md):
     gsheet_id = "<the destination Google Sheet's file ID>"
     gdrive_folder_id = "<the destination Drive folder's ID>"
 
-The Sheet and the Drive folder both need to be shared (Editor access) with
-the service account's `client_email`.
+The Sheet needs to be shared (Editor access) with the service account's
+`client_email`.
+
+`gdrive_folder_id` is OPTIONAL. Google does not give service accounts any
+Drive storage quota, so uploading a PNG into a personal My Drive folder
+fails with "Service Accounts do not have storage quota" even when the folder
+is shared correctly -- the uploaded file would be *owned* by the robot
+account, which has nowhere to put it. Shared drives and domain-wide
+delegation avoid this, but both are Google Workspace features.
+
+So: leave `gdrive_folder_id` out and the backend logs to the Sheet alone.
+That loses nothing essential -- every row already carries all 784 pixel
+values, and the Admin gallery rebuilds its thumbnails from those columns
+rather than from Drive.
 """
 
 import io
@@ -76,7 +88,7 @@ class StorageError(RuntimeError):
 
 
 def backend_name() -> str:
-    return "cloud"
+    return "cloud" if drive_enabled() else "cloud (Sheets only)"
 
 
 def _secret(*path: str):
@@ -91,6 +103,22 @@ def _secret(*path: str):
             f"Missing `{dotted}` in Streamlit secrets. Follow SETUP_CLOUD_STORAGE.md, "
             "then restart the app."
         ) from exc
+
+
+def _optional_secret(*path: str):
+    """Like _secret(), but returns None instead of raising when absent."""
+    node = st.secrets
+    try:
+        for key in path:
+            node = node[key]
+    except Exception:
+        return None
+    return node or None
+
+
+def drive_enabled() -> bool:
+    """True when a Drive folder is configured for PNG uploads."""
+    return _optional_secret("storage", "gdrive_folder_id") is not None
 
 
 @st.cache_resource(show_spinner=False)
@@ -144,8 +172,11 @@ def _build_row(label, final, raw_rgba, contributor_email, submission_id, status)
     image_filename = f"{label}_{ts}.png"
     raw_filename = f"{label}_{ts}_raw.png"
 
-    _upload_png(Image.fromarray(np.clip(final, 0, 255).astype(np.uint8), mode="L"), image_filename)
-    _upload_png(Image.fromarray(raw_rgba.astype(np.uint8), mode="RGBA"), raw_filename)
+    # Skipped unless a Drive folder is configured -- see the module docstring
+    # on why a service account often cannot write to one.
+    if drive_enabled():
+        _upload_png(Image.fromarray(np.clip(final, 0, 255).astype(np.uint8), mode="L"), image_filename)
+        _upload_png(Image.fromarray(raw_rgba.astype(np.uint8), mode="RGBA"), raw_filename)
 
     pixels = np.clip(final, 0, 255).astype(np.uint8).flatten().tolist()
     return [

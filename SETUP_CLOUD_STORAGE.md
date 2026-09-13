@@ -32,7 +32,17 @@ project, enable:
 
 1. Create a new Google Sheet (any name) — this becomes the dataset log. Grab
    its **file ID** from the URL: `https://docs.google.com/spreadsheets/d/<THIS_PART>/edit`.
-2. Create a new Google Drive folder — this holds the PNGs. Grab its
+2. **Optional — and usually not worth it.** Create a Google Drive folder for
+   the PNGs. Google gives service accounts **no Drive storage quota**, so an
+   upload into a personal My Drive folder fails with *"Service Accounts do
+   not have storage quota"* even when the folder is shared correctly — the
+   file would be owned by the robot account, which has nowhere to put it.
+   Shared drives and domain-wide delegation avoid this, but both need Google
+   Workspace. Omit `gdrive_folder_id` and the backend logs to the Sheet
+   alone; every row already carries all 784 pixel values, and the Admin
+   gallery rebuilds thumbnails from those columns rather than from Drive.
+
+   If you do have Workspace and want the PNGs, grab its
    **folder ID** from the URL: `https://drive.google.com/drive/folders/<THIS_PART>`.
 3. **Share both** the Sheet and the folder with the service account's
    `client_email` from step 2, with **Editor** access.
